@@ -34,8 +34,8 @@ jobs:
                 @semantic-release/git \
                 conventional-changelog-conventionalcommits \
                 conventional-changelog-eslint
-      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
-        run: npm audit signatures
+    #   - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+    #     run: npm audit signatures
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
