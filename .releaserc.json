@@ -109,7 +109,7 @@
         [
             "@semantic-release/github",
             {
-                "assets": false
+                "assets": []
             }
         ],
         [
