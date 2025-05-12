@@ -31,7 +31,9 @@ jobs:
                 @semantic-release/commit-analyzer \
                 @semantic-release/release-notes-generator \
                 @semantic-release/github \
-                @semantic-release/git
+                @semantic-release/git \
+                conventional-changelog-conventionalcommits \
+                conventional-changelog-eslint
       - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
         run: npm audit signatures
       - name: Release
