@@ -1,0 +1,124 @@
+{
+    "branches": [
+        "master"
+    ],
+    "ci": true,
+    "plugins": [
+        [
+            "@semantic-release/commit-analyzer",
+            {
+                "preset": "ESLint",
+                "releaseRules": [
+                    {
+                        "tag": "breaking",
+                        "release": "major"
+                    },
+                    {
+                        "tag": "chore",
+                        "release": "patch"
+                    },
+                    {
+                        "tag": "ci",
+                        "release": "patch"
+                    },
+                    {
+                        "tag": "docs",
+                        "release": false
+                    },
+                    {
+                        "tag": "feat",
+                        "release": "minor"
+                    },
+                    {
+                        "tag": "fix",
+                        "release": "patch"
+                    },
+                    {
+                        "tag": "refactor",
+                        "release": "patch"
+                    },
+                    {
+                        "tag": "security",
+                        "release": "patch"
+                    },
+                    {
+                        "tag": "style",
+                        "release": "patch"
+                    },
+                    {
+                        "tag": "test",
+                        "release": false
+                    }
+                ]
+            }
+        ],
+        [
+            "@semantic-release/release-notes-generator",
+            {
+                "preset": "conventionalcommits",
+                "presetConfig": {
+                    "types": [
+                        {
+                            "type": "feat",
+                            "section": "Features"
+                        },
+                        {
+                            "type": "fix",
+                            "section": "Bug Fixes"
+                        },
+                        {
+                            "type": "perf",
+                            "section": "Performance Improvements"
+                        },
+                        {
+                            "type": "revert",
+                            "section": "Reverts"
+                        },
+                        {
+                            "type": "docs",
+                            "section": "Documentation"
+                        },
+                        {
+                            "type": "style",
+                            "section": "Styles"
+                        },
+                        {
+                            "type": "refactor",
+                            "section": "Code Refactoring"
+                        },
+                        {
+                            "type": "test",
+                            "section": "Tests"
+                        },
+                        {
+                            "type": "build",
+                            "section": "Build Systems"
+                        },
+                        {
+                            "type": "ci",
+                            "section": "Continuous Integration"
+                        },
+                        {
+                            "type": "security",
+                            "section": "Security"
+                        }
+                    ]
+                }
+            }
+        ],
+        [
+            "@semantic-release/github",
+            {
+                "assets": [
+                    "EFCoreDemo/**"
+                ]
+            }
+        ],
+        [
+            "@semantic-release/git",
+            {
+                "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+            }
+        ]
+    ]
+}
