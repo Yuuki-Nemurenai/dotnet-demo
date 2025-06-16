@@ -21,21 +21,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: "lts/*"
+      # - name: Install Semantic Release
+      #   run: |
+      #       npm install -g semantic-release \
+      #           @semantic-release/commit-analyzer \
+      #           @semantic-release/release-notes-generator \
+      #           @semantic-release/github \
+      #           @semantic-release/git \
+      #           conventional-changelog-conventionalcommits \
+      #           conventional-changelog-eslint
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          node-version: "lts/*"
-      - name: Install Semantic Release
-        run: |
-            npm install -g semantic-release \
-                @semantic-release/commit-analyzer \
-                @semantic-release/release-notes-generator \
-                @semantic-release/github \
-                @semantic-release/git \
-                conventional-changelog-conventionalcommits \
-                conventional-changelog-eslint
-    #   - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
-    #     run: npm audit signatures
+          semantic_version: 24.2.5
+          extra_plugins: |
+            @semantic-release/commit-analyzer \
+            @semantic-release/release-notes-generator \
+            @semantic-release/github \
+            @semantic-release/git
+            conventional-changelog-conventionalcommits@9.0.0
+            conventional-changelog-eslint
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
