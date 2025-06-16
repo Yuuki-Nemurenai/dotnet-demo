@@ -41,11 +41,11 @@ jobs:
         with:
           semantic_version: 24.2.5
           extra_plugins: |
-            @semantic-release/commit-analyzer \
-            @semantic-release/release-notes-generator \
-            @semantic-release/github \
+            @semantic-release/commit-analyzer
+            @semantic-release/release-notes-generator
+            @semantic-release/github
             @semantic-release/git
-            conventional-changelog-conventionalcommits@9.0.0
+            conventional-changelog-conventionalcommits
             conventional-changelog-eslint
       - name: Release
         env:
