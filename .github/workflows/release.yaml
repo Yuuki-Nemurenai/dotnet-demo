@@ -39,7 +39,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          semantic_version: 24.2.5
           extra_plugins: |
             @semantic-release/commit-analyzer
             @semantic-release/release-notes-generator
