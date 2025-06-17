@@ -53,6 +53,12 @@
             }
         ],
         [
+            "semantic-release-helm",
+            {
+                "chartPath": "./chart/dotnet-demo"
+            }
+        ],
+        [
             "@semantic-release/release-notes-generator",
             {
                 "preset": "conventionalcommits",
