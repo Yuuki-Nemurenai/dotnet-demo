@@ -46,7 +46,4 @@ jobs:
             @semantic-release/git
             conventional-changelog-conventionalcommits
             conventional-changelog-eslint
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+            semantic-release-helm
