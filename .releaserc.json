@@ -78,7 +78,7 @@
                         },
                         {
                             "type": "revert",
-                            "section": "Reverts"
+                            "section": "⏪ Reverts"
                         },
                         {
                             "type": "docs",
@@ -86,27 +86,27 @@
                         },
                         {
                             "type": "style",
-                            "section": "Styles"
+                            "section": "🎨 Styles"
                         },
                         {
                             "type": "refactor",
-                            "section": "Code Refactoring"
+                            "section": "♻️ Code Refactoring"
                         },
                         {
                             "type": "test",
-                            "section": "Tests"
+                            "section": "✅ Tests"
                         },
                         {
                             "type": "build",
-                            "section": "Build Systems"
+                            "section": "🔧 Build Systems"
                         },
                         {
                             "type": "ci",
-                            "section": "Continuous Integration"
+                            "section": "👷 Continuous Integration"
                         },
                         {
                             "type": "security",
-                            "section": "Security"
+                            "section": "🔒 Security"
                         }
                     ]
                 }
