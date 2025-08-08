@@ -45,5 +45,4 @@ jobs:
             @semantic-release/github
             @semantic-release/git
             conventional-changelog-conventionalcommits
-            conventional-changelog-eslint
             semantic-release-helm
