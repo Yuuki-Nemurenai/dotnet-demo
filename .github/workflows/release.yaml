@@ -1,7 +1,9 @@
 name: Release
 on:
-  workflow_dispatch:
-
+  push:
+    branches:
+      - master
+      - next
 permissions:
   contents: read # for checkout
 
