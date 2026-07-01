@@ -40,7 +40,7 @@ jobs:
             @semantic-release/changelog
             @semantic-release/github
             @semantic-release/git
-            conventional-changelog-conventionalcommits
+            conventional-changelog-conventionalcommits@9
             semantic-release-helm
 
   image:
