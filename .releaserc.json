@@ -69,6 +69,13 @@
             }
         ],
         [
+            "@semantic-release/changelog",
+            {
+                "changelogFile": "CHANGELOG.md",
+                "changelogTitle": "# Changelog"
+            }
+        ],
+        [
             "semantic-release-helm",
             {
                 "chartPath": "./chart/dotnet-demo",
@@ -85,6 +92,7 @@
             "@semantic-release/git",
             {
                 "assets": [
+                    "CHANGELOG.md",
                     "chart/dotnet-demo/Chart.yaml"
                 ],
                 "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
