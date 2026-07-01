@@ -10,22 +10,11 @@ on:
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            dotnet/app
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-      - name: Show tags
-        run: |
-          echo "Generated tags:"
-          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n'
+    name: Build and push image
+    permissions:
+      contents: read # for checkout
+      packages: write # to push the image to GHCR
+    uses: ./.github/workflows/docker-build.yaml
+    with:
+      tag: ${{ github.run_number }}
+      environment: ${{ inputs.environment }}
