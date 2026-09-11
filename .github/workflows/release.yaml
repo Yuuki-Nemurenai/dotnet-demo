@@ -1,11 +1,12 @@
 name: Release
+
 on:
   push:
     branches:
-      - master
-      - next
+      - develop
+
 permissions:
-  contents: read # for checkout
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -13,36 +14,27 @@ concurrency:
 
 jobs:
   release:
-    name: Release
+    name: Release Please
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for npm provenance
+      contents: write # to create the tag and the GitHub release
+      pull-requests: write # to open and update the release PR
     outputs:
-      published: ${{ steps.semantic.outputs.new_release_published }}
-      version: ${{ steps.semantic.outputs.new_release_version }}
+      published: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
         with:
-          fetch-depth: 0
-      - name: Semantic Release
-        id: semantic
-        uses: cycjimmy/semantic-release-action@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          extra_plugins: |
-            @semantic-release/commit-analyzer
-            @semantic-release/release-notes-generator
-            @semantic-release/changelog
-            @semantic-release/github
-            @semantic-release/git
-            conventional-changelog-conventionalcommits@9
-            semantic-release-helm
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: develop
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
+  # The tag is created with GITHUB_TOKEN, which never triggers `on: push: tags`.
+  # Release artifacts therefore have to be chained onto the release job itself.
   image:
     name: Build image
     needs: release
@@ -52,4 +44,17 @@ jobs:
       packages: write # to push the image to GHCR
     uses: ./.github/workflows/docker-build.yaml
     with:
-      tag: ${{ needs.release.outputs.version }}
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
+
+  chart:
+    name: Publish chart
+    needs: [release, image]
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: write # to attach the packaged chart to the GitHub release
+      packages: write # to push the chart to GHCR as an OCI artifact
+    uses: ./.github/workflows/helm-publish.yaml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}

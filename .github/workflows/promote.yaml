@@ -1,0 +1,94 @@
+name: Promote to production
+
+# Promotion never rebuilds: it re-points the mutable `stable` tag at the digest
+# that was already built and published from the release tag.
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version to promote, e.g. 2.4.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CHART_NAME: dotnet-demo
+
+jobs:
+  promote:
+    name: Promote release
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read # for checkout
+      packages: write # to re-tag the released image
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve version
+        id: version
+        run: |
+          version="${{ inputs.version }}"
+          if [ -z "$version" ]; then
+            if [ ! -f version.txt ]; then
+              echo "::error::version.txt is missing on this branch - merge develop into master first"
+              exit 1
+            fi
+            version="$(tr -d '[:space:]' < version.txt)"
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::'$version' is not a semver version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-tag released image as stable
+        id: promote
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          image="$REGISTRY/$IMAGE_NAME"
+          digest="$(docker buildx imagetools inspect "$image:$VERSION" \
+            --format '{{.Manifest.Digest}}')"
+          docker buildx imagetools create --tag "$image:stable" "$image@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Promotion summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DIGEST: ${{ steps.promote.outputs.digest }}
+        run: |
+          {
+            echo "### Promoted $VERSION to production"
+            echo ''
+            echo "Image: \`$REGISTRY/$IMAGE_NAME@$DIGEST\`"
+            echo ''
+            echo 'Deploy with:'
+            echo '```sh'
+            echo "helm upgrade --install $CHART_NAME \\"
+            echo "  oci://$REGISTRY/${{ github.repository_owner }}/charts/$CHART_NAME \\"
+            echo "  --version $VERSION"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

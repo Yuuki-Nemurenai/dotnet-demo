@@ -3,15 +3,28 @@ name: Build image
 on:
   workflow_call:
     inputs:
-      tag:
-        description: "Image tag to build and push"
-        required: true
+      ref:
+        description: "Git ref to build from; defaults to the commit that triggered the caller"
+        required: false
         type: string
+        default: ""
+      version:
+        description: "Semver release version. When set, the image gets immutable X.Y.Z / X.Y / X / latest tags"
+        required: false
+        type: string
+        default: ""
       environment:
         description: "Optional deployment environment"
         required: false
         type: string
         default: ""
+    outputs:
+      image:
+        description: "Digest-pinned reference of the pushed image"
+        value: ${{ jobs.docker.outputs.image }}
+      digest:
+        description: "Digest of the pushed image"
+        value: ${{ jobs.docker.outputs.digest }}
 
 env:
   REGISTRY: ghcr.io
@@ -25,9 +38,14 @@ jobs:
     permissions:
       contents: read # for checkout
       packages: write # to push the image to GHCR
+    outputs:
+      image: ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -39,15 +57,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Release builds (version set) get immutable semver tags; everything else
+      # gets a mutable branch tag plus an always-unique sha- tag.
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ inputs.tag }}
+            type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=semver,pattern={{major}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=raw,value=latest,enable=${{ inputs.version != '' }}
+            type=ref,event=branch,enable=${{ inputs.version == '' }}
+            type=sha,format=short,prefix=sha-
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -60,7 +86,10 @@ jobs:
 
       - name: Image summary
         run: |
-          echo "### Pushed image" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Pushed image"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo "digest: ${{ steps.build.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
