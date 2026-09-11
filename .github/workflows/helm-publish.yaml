@@ -1,0 +1,72 @@
+name: Publish chart
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref (release tag) to package the chart from"
+        required: true
+        type: string
+      version:
+        description: "Semver version used for both chart version and appVersion"
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  CHART_DIR: chart/dotnet-demo
+  CHART_NAME: dotnet-demo
+
+jobs:
+  chart:
+    name: Package and push chart
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to attach the packaged chart to the GitHub release
+      packages: write # to push the chart to GHCR as an OCI artifact
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint "$CHART_DIR"
+
+      - name: Package chart
+        run: |
+          helm package "$CHART_DIR" \
+            --version "${{ inputs.version }}" \
+            --app-version "${{ inputs.version }}" \
+            --destination dist
+
+      - name: Log in to the Container registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login "$REGISTRY" \
+                --username "${{ github.actor }}" \
+                --password-stdin
+
+      - name: Push chart
+        run: |
+          helm push "dist/$CHART_NAME-${{ inputs.version }}.tgz" \
+            "oci://$REGISTRY/${{ github.repository_owner }}/charts"
+
+      - name: Attach chart to the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ inputs.ref }}" \
+            "dist/$CHART_NAME-${{ inputs.version }}.tgz" --clobber
+
+      - name: Chart summary
+        run: |
+          {
+            echo "### Published chart"
+            echo '```'
+            echo "oci://$REGISTRY/${{ github.repository_owner }}/charts/$CHART_NAME:${{ inputs.version }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

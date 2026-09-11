@@ -1,20 +1,97 @@
-name: Demo App Deploy
+name: Deploy
+
+# Deployment never rebuilds: it moves the environment's mutable tag onto the
+# digest that was already built and published from the release tag.
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Released version to deploy, e.g. 2.4.0"
+        required: true
+        type: string
+      environment:
+        description: "Target deployment environment"
+        required: false
+        type: string
+        default: production
   workflow_dispatch:
     inputs:
-      environment:
-        type: environment
-        description: "Select Demo App environment"
+      version:
+        description: "Released version to deploy, e.g. 2.4.0"
         required: true
-        default: "dev"
+        type: string
+      environment:
+        description: "Target deployment environment"
+        type: environment
+        required: true
+        default: production
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CHART_NAME: dotnet-demo
 
 jobs:
-  docker:
-    name: Build and push image
+  deploy:
+    name: Deploy ${{ inputs.version }} to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
     permissions:
       contents: read # for checkout
-      packages: write # to push the image to GHCR
-    uses: ./.github/workflows/docker-build.yaml
-    with:
-      tag: ${{ github.run_number }}
-      environment: ${{ inputs.environment }}
+      packages: write # to move the environment tag onto the released digest
+    steps:
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::'$VERSION' is not a semver version"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point the environment tag at the released digest
+        id: promote
+        env:
+          VERSION: ${{ inputs.version }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          image="$REGISTRY/$IMAGE_NAME"
+          digest="$(docker buildx imagetools inspect "$image:$VERSION" \
+            --format '{{.Manifest.Digest}}')"
+          docker buildx imagetools create --tag "$image:$ENVIRONMENT" "$image@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment summary
+        env:
+          VERSION: ${{ inputs.version }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          DIGEST: ${{ steps.promote.outputs.digest }}
+        run: |
+          {
+            echo "### Deployed $VERSION to $ENVIRONMENT"
+            echo ''
+            echo "Image: \`$REGISTRY/$IMAGE_NAME@$DIGEST\`"
+            echo ''
+            echo 'Chart:'
+            echo '```sh'
+            echo "helm upgrade --install $CHART_NAME \\"
+            echo "  oci://$REGISTRY/${{ github.repository_owner }}/charts/$CHART_NAME \\"
+            echo "  --version $VERSION"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -16,7 +16,7 @@ jobs:
   lint-pr:
     name: Validate PR title
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/develop' }}
+    if: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 2
     steps:
       - uses: amannn/action-semantic-pull-request@v5
@@ -59,6 +59,17 @@ jobs:
             --property WarningLevel=0 \
             /clp:ErrorsOnly
 
+      - name: Dotnet test
+        run: |
+          mapfile -t projects < <(find . -name '*Tests.csproj')
+          if [ "${#projects[@]}" -eq 0 ]; then
+            echo "::warning::No test projects found - skipping dotnet test"
+            exit 0
+          fi
+          for project in "${projects[@]}"; do
+            dotnet test "$project" --nologo --verbosity quiet
+          done
+
   image:
     name: Build image
     needs: build
@@ -67,9 +78,3 @@ jobs:
       contents: read # for checkout
       packages: write # to push the image to GHCR
     uses: ./.github/workflows/docker-build.yaml
-    with:
-      tag: ${{ github.run_number }}
-
-
-
-

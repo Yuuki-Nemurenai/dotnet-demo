@@ -1,11 +1,14 @@
 name: Release
+
+# master is the release branch: release-please opens its release PR here, and the
+# tag, the image and the chart are all cut from the production branch.
 on:
   push:
     branches:
       - master
-      - next
+
 permissions:
-  contents: read # for checkout
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -13,36 +16,29 @@ concurrency:
 
 jobs:
   release:
-    name: Release
+    name: Release Please
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for npm provenance
+      contents: write # to create the tag and the GitHub release
+      pull-requests: write # to open and update the release PR
     outputs:
-      published: ${{ steps.semantic.outputs.new_release_published }}
-      version: ${{ steps.semantic.outputs.new_release_version }}
+      published: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      # RELEASE_PLEASE_TOKEN is only needed if master requires status checks:
+      # pull requests opened with GITHUB_TOKEN do not trigger workflow runs.
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
         with:
-          fetch-depth: 0
-      - name: Semantic Release
-        id: semantic
-        uses: cycjimmy/semantic-release-action@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          extra_plugins: |
-            @semantic-release/commit-analyzer
-            @semantic-release/release-notes-generator
-            @semantic-release/changelog
-            @semantic-release/github
-            @semantic-release/git
-            conventional-changelog-conventionalcommits@9
-            semantic-release-helm
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          target-branch: master
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
+  # The tag is created with GITHUB_TOKEN, which never triggers `on: push: tags`.
+  # Release artifacts therefore have to be chained onto the release job itself.
   image:
     name: Build image
     needs: release
@@ -52,4 +48,77 @@ jobs:
       packages: write # to push the image to GHCR
     uses: ./.github/workflows/docker-build.yaml
     with:
-      tag: ${{ needs.release.outputs.version }}
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
+
+  chart:
+    name: Publish chart
+    needs: [release, image]
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: write # to attach the packaged chart to the GitHub release
+      packages: write # to push the chart to GHCR as an OCI artifact
+    uses: ./.github/workflows/helm-publish.yaml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
+
+  deploy:
+    name: Deploy
+    needs: [release, image, chart]
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: read # for checkout
+      packages: write # to move the environment tag onto the released digest
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      version: ${{ needs.release.outputs.version }}
+      environment: production
+
+  backmerge:
+    name: Back-merge to develop
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # for checkout
+      pull-requests: write # to open the back-merge pull request
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # BACKMERGE_TOKEN is only needed if develop requires status checks:
+      # pull requests opened with GITHUB_TOKEN do not trigger workflow runs,
+      # so auto-merge would wait forever on checks that never start.
+      - name: Open back-merge pull request
+        env:
+          GH_TOKEN: ${{ secrets.BACKMERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          git fetch --no-tags origin develop master
+
+          if git diff --quiet origin/develop origin/master; then
+            echo "develop already matches master, nothing to back-merge"
+            exit 0
+          fi
+
+          # `.[].url` yields nothing on an empty list, unlike `.[0].url` which prints "null"
+          existing="$(gh pr list --base develop --head master --state open \
+            --json url --jq '.[].url' | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "Back-merge pull request already open, it now also carries $VERSION:"
+            echo "$existing"
+            exit 0
+          fi
+
+          url="$(gh pr create \
+            --base develop \
+            --head master \
+            --title "chore: back-merge release $VERSION into develop" \
+            --body "Automated back-merge of the \`$VERSION\` release commit (CHANGELOG, Chart.yaml, version.txt, release-please manifest) from \`master\`.")"
+          echo "Opened $url"
+
+          gh pr merge "$url" --auto --merge \
+            || echo "::warning::Could not enable auto-merge; merge $url manually"
