@@ -5,6 +5,9 @@
       "release-type": "simple",
       "version-file": "version.txt",
       "changelog-path": "CHANGELOG.md",
+      "pull-request-title-pattern": "chore(release): ${version}",
+      "pull-request-header": "Merging this pull request cuts the release: it creates the tag and the GitHub release, builds and pushes the image, publishes the Helm chart to GHCR, deploys to production once approved, and opens a back-merge into `develop`.",
+      "pull-request-footer": "Automated by [release-please](https://github.com/googleapis/release-please). Version bumps are configured in `release-please-config.json`.",
       "include-v-in-tag": true,
       "include-component-in-tag": false,
       "extra-files": [
