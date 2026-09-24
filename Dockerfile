@@ -6,9 +6,11 @@ WORKDIR /source
 COPY --link EFCoreDemo/*.csproj .
 RUN dotnet restore
 
-# Copy source code and publish app
+# Copy source code and publish app. The version is not kept in the csproj:
+# release builds pass the tag's semver, everything else stays a dev build.
 COPY --link EFCoreDemo/. .
-RUN dotnet publish --no-restore -o /app
+ARG VERSION=0.0.0-dev
+RUN dotnet publish --no-restore -o /app -p:Version=$VERSION
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine3.23
 

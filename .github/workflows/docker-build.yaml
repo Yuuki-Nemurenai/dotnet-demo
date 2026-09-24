@@ -81,6 +81,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Stamps the assembly version; non-release builds keep the Dockerfile default
+          build-args: |
+            ${{ inputs.version != '' && format('VERSION={0}', inputs.version) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

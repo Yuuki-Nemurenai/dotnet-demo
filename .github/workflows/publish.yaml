@@ -1,0 +1,77 @@
+name: Publish
+
+# Builds and ships a release tag: the image, the Helm chart and the production
+# deployment. Started by the vX.Y.Z tag semantic-release pushes from master, or
+# by hand to re-publish an existing tag.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish, e.g. v4.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Resolve tag and version
+        id: resolve
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::'$TAG' is not a vX.Y.Z release tag"
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=${TAG#v}"
+          } >> "$GITHUB_OUTPUT"
+
+  image:
+    name: Build image
+    needs: resolve
+    permissions:
+      contents: read # for checkout
+      packages: write # to push the image to GHCR
+    uses: ./.github/workflows/docker-build.yaml
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+      version: ${{ needs.resolve.outputs.version }}
+
+  chart:
+    name: Publish chart
+    needs: [resolve, image]
+    permissions:
+      contents: write # to attach the packaged chart to the GitHub release
+      packages: write # to push the chart to GHCR as an OCI artifact
+    uses: ./.github/workflows/helm-publish.yaml
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+      version: ${{ needs.resolve.outputs.version }}
+
+  deploy:
+    name: Deploy
+    needs: [resolve, image, chart]
+    permissions:
+      contents: read # for checkout
+      packages: write # to move the environment tag onto the released digest
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      environment: production
