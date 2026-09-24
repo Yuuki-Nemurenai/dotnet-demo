@@ -1,0 +1,80 @@
+{
+    "branches": [
+        "master"
+    ],
+    "tagFormat": "v${version}",
+    "ci": true,
+    "plugins": [
+        [
+            "@semantic-release/commit-analyzer",
+            {
+                "preset": "conventionalcommits"
+            }
+        ],
+        [
+            "@semantic-release/release-notes-generator",
+            {
+                "preset": "conventionalcommits",
+                "presetConfig": {
+                    "types": [
+                        {
+                            "type": "feat",
+                            "section": "✨ Features"
+                        },
+                        {
+                            "type": "fix",
+                            "section": "🐛 Bug Fixes"
+                        },
+                        {
+                            "type": "perf",
+                            "section": "⚡ Performance Improvements"
+                        },
+                        {
+                            "type": "revert",
+                            "section": "⏪ Reverts"
+                        },
+                        {
+                            "type": "docs",
+                            "section": "📝 Documentation"
+                        },
+                        {
+                            "type": "style",
+                            "section": "🎨 Styles"
+                        },
+                        {
+                            "type": "refactor",
+                            "section": "♻️ Code Refactoring"
+                        },
+                        {
+                            "type": "test",
+                            "section": "✅ Tests"
+                        },
+                        {
+                            "type": "build",
+                            "section": "🔧 Build Systems"
+                        },
+                        {
+                            "type": "ci",
+                            "section": "👷 Continuous Integration"
+                        },
+                        {
+                            "type": "security",
+                            "section": "🔒 Security"
+                        },
+                        {
+                            "type": "chore",
+                            "section": "🧹 Chores",
+                            "hidden": true
+                        }
+                    ]
+                }
+            }
+        ],
+        [
+            "@semantic-release/github",
+            {
+                "assets": []
+            }
+        ]
+    ]
+}
