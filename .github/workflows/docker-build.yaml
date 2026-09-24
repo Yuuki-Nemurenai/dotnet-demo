@@ -8,16 +8,20 @@ on:
         required: false
         type: string
         default: ""
+      tags:
+        description: "docker/metadata-action tag rules, one per line"
+        required: true
+        type: string
       version:
-        description: "Semver release version. When set, the image gets immutable X.Y.Z / X.Y / X / latest tags"
+        description: "Assembly version stamped into the app; empty keeps the Dockerfile default"
         required: false
         type: string
         default: ""
-      environment:
-        description: "Optional deployment environment"
+      push:
+        description: "Push the image to GHCR; false only checks that it builds"
         required: false
-        type: string
-        default: ""
+        type: boolean
+        default: true
     outputs:
       image:
         description: "Digest-pinned reference of the pushed image"
@@ -32,9 +36,8 @@ env:
 
 jobs:
   docker:
-    name: Build and push image
+    name: Build${{ inputs.push && ' and push' || '' }} image
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
     permissions:
       contents: read # for checkout
       packages: write # to push the image to GHCR
@@ -51,23 +54,19 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to the Container registry
+        if: inputs.push
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Release builds (version set) get immutable semver tags; everything else
-      # gets a mutable branch tag plus an always-unique sha- tag.
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
-            type=raw,value=latest
-            type=raw,value=${{ github.run_number }}
+          tags: ${{ inputs.tags }}
 
       - name: Build and push
         id: build
@@ -75,10 +74,10 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: true
+          push: ${{ inputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Stamps the assembly version; non-release builds keep the Dockerfile default
+          # Stamps the assembly version; other builds keep the Dockerfile default
           build-args: |
             ${{ inputs.version != '' && format('VERSION={0}', inputs.version) || '' }}
           cache-from: type=gha
@@ -87,7 +86,7 @@ jobs:
       - name: Image summary
         run: |
           {
-            echo "### Pushed image"
+            echo "### ${{ inputs.push && 'Pushed' || 'Built (not pushed)' }} image"
             echo '```'
             echo "${{ steps.meta.outputs.tags }}"
             echo "digest: ${{ steps.build.outputs.digest }}"

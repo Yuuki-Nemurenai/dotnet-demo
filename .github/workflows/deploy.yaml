@@ -1,30 +1,20 @@
 name: Deploy
 
-# Deployment never rebuilds: it moves the environment's mutable tag onto the
-# digest that was already built and published from the release tag.
+# Manual only. Deployment never rebuilds: it moves the environment's mutable tag
+# onto an image that is already in GHCR, either a develop build (run number,
+# e.g. 35) or a release (X.Y.Z, e.g. 4.1.0).
 on:
-  workflow_call:
-    inputs:
-      version:
-        description: "Released version to deploy, e.g. 2.4.0"
-        required: true
-        type: string
-      environment:
-        description: "Target deployment environment"
-        required: false
-        type: string
-        default: production
   workflow_dispatch:
     inputs:
-      version:
-        description: "Released version to deploy, e.g. 2.4.0"
-        required: true
-        type: string
       environment:
         description: "Target deployment environment"
         type: environment
         required: true
         default: production
+      version:
+        description: "Image to deploy: develop run number (e.g. 35) or release version (e.g. 4.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -44,14 +34,14 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: read # for checkout
-      packages: write # to move the environment tag onto the released digest
+      packages: write # to move the environment tag onto the image digest
     steps:
       - name: Validate version
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "::error::'$VERSION' is not a semver version"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+\.[0-9]+)?$'; then
+            echo "::error::'$VERSION' is neither a run number nor a X.Y.Z release version"
             exit 1
           fi
 
@@ -65,7 +55,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Point the environment tag at the released digest
+      - name: Point the environment tag at the image digest
         id: promote
         env:
           VERSION: ${{ inputs.version }}
@@ -91,7 +81,13 @@ jobs:
             echo 'Chart:'
             echo '```sh'
             echo "helm upgrade --install $CHART_NAME \\"
-            echo "  oci://$REGISTRY/${{ github.repository_owner }}/charts/$CHART_NAME \\"
-            echo "  --version $VERSION"
+            # Only releases publish the chart; develop builds use the chart from the repo
+            if printf '%s' "$VERSION" | grep -q '\.'; then
+              echo "  oci://$REGISTRY/${{ github.repository_owner }}/charts/$CHART_NAME \\"
+              echo "  --version $VERSION"
+            else
+              echo "  ./chart/$CHART_NAME \\"
+              echo "  --set image.tag=$VERSION"
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
