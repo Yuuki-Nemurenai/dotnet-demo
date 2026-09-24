@@ -1,9 +1,9 @@
 name: Release
 
 # master is the release branch: every push to it is analysed by semantic-release,
-# which pushes the vX.Y.Z tag and creates the GitHub release. It commits nothing:
-# the version lives only in the tag and is injected into the csproj, the image
-# and the chart at build time by the Publish workflow.
+# which pushes the vX.Y.Z tag, creates the GitHub release and then dispatches the
+# Publish workflow on that tag. It commits nothing: the version lives only in the
+# tag and is injected into the csproj, the image and the chart at build time.
 on:
   push:
     branches:
@@ -21,10 +21,10 @@ jobs:
     name: Semantic Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for trusted publishing and npm provenance
+      contents: write # to push the tag and create the GitHub release
+      issues: write # to comment on released issues
+      pull-requests: write # to comment on released pull requests
+      actions: write # to dispatch the Publish workflow for the new tag
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -42,6 +42,9 @@ jobs:
       - name: Verify release tooling signatures
         run: npm audit signatures
 
+      # The tag and the release are made as github-actions[bot]. A tag pushed with
+      # GITHUB_TOKEN never triggers `on: push: tags`, but workflow_dispatch does,
+      # so Publish is started explicitly by @semantic-release/exec (successCmd).
       - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

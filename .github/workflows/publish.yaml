@@ -1,24 +1,19 @@
 name: Publish
 
 # Builds and ships a release tag: the image, the Helm chart and the production
-# deployment. Started by the vX.Y.Z tag semantic-release pushes from master, or
-# by hand to re-publish an existing tag.
+# deployment. Dispatched on the new tag by semantic-release (Release workflow);
+# to re-publish by hand, run it and pick the tag in "Use workflow from".
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing release tag to publish, e.g. v4.1.0"
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ inputs.tag || github.ref_name }}
+  group: publish-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -32,10 +27,11 @@ jobs:
       - name: Resolve tag and version
         id: resolve
         env:
-          TAG: ${{ inputs.tag || github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          TAG: ${{ github.ref_name }}
         run: |
-          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "::error::'$TAG' is not a vX.Y.Z release tag"
+          if [ "$REF_TYPE" != tag ] || ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::Publish must run on a vX.Y.Z release tag, not $REF_TYPE '$TAG'"
             exit 1
           fi
           {
