@@ -1,8 +1,9 @@
 name: Publish
 
-# Builds and ships a release tag: the image, the Helm chart and the production
-# deployment. Dispatched on the new tag by semantic-release (Release workflow);
-# to re-publish by hand, run it and pick the tag in "Use workflow from".
+# Builds and ships a release tag: the X.Y.Z image and the Helm chart; deployment
+# stays manual (Deploy workflow). Dispatched on the new tag by semantic-release
+# (Release workflow); to re-publish by hand, run it and pick the tag in
+# "Use workflow from".
 on:
   workflow_dispatch:
   push:
@@ -49,6 +50,9 @@ jobs:
     with:
       ref: ${{ needs.resolve.outputs.tag }}
       version: ${{ needs.resolve.outputs.version }}
+      # Releases get only their immutable number; `latest` belongs to develop
+      tags: |
+        type=raw,value=${{ needs.resolve.outputs.version }}
 
   chart:
     name: Publish chart
@@ -61,13 +65,3 @@ jobs:
       ref: ${{ needs.resolve.outputs.tag }}
       version: ${{ needs.resolve.outputs.version }}
 
-  deploy:
-    name: Deploy
-    needs: [resolve, image, chart]
-    permissions:
-      contents: read # for checkout
-      packages: write # to move the environment tag onto the released digest
-    uses: ./.github/workflows/deploy.yaml
-    with:
-      version: ${{ needs.resolve.outputs.version }}
-      environment: production

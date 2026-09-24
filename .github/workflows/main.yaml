@@ -1,0 +1,116 @@
+name: Demo App main workflow
+
+# Pull requests into any branch run the checks and build the image without
+# pushing it. A merge into develop skips the checks already run on the PR and
+# pushes the image as `latest` and as the run number, which is what the Deploy
+# workflow takes for non-release deployments.
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+env:
+  DOTNET_VERSION: 9.0.x
+  PROJECT: EFCoreDemo/EFCoreDemo.csproj
+  CHART_DIR: chart/dotnet-demo
+
+permissions:
+  contents: read
+
+jobs:
+  lint-pr:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read # to read the PR title
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+            security
+
+  tests:
+    name: .NET build and tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT }}
+
+      - name: Dotnet build project
+        run: |
+          dotnet build ${{ env.PROJECT }} \
+            --no-restore \
+            --nologo \
+            --verbosity quiet \
+            --property WarningLevel=0 \
+            /clp:ErrorsOnly
+
+      - name: Dotnet test
+        run: |
+          mapfile -t projects < <(find . -name '*Tests.csproj')
+          if [ "${#projects[@]}" -eq 0 ]; then
+            echo "::warning::No test projects found - skipping dotnet test"
+            exit 0
+          fi
+          for project in "${projects[@]}"; do
+            dotnet test "$project" --nologo --verbosity quiet
+          done
+
+  helm-lint:
+    name: Helm lint
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint "$CHART_DIR"
+
+      - name: Render chart
+        run: helm template "$CHART_DIR" > /dev/null
+
+  # On pull requests the image is only built; on develop the checks were already
+  # run on the PR and are skipped, so the build must tolerate skipped needs.
+  image:
+    name: Build image
+    needs: [tests, helm-lint]
+    if: ${{ !failure() && !cancelled() }}
+    permissions:
+      contents: read # for checkout
+      packages: write # to push the image to GHCR
+    uses: ./.github/workflows/docker-build.yaml
+    with:
+      push: ${{ github.event_name != 'pull_request' }}
+      tags: |
+        type=raw,value=latest
+        type=raw,value=${{ github.run_number }}
