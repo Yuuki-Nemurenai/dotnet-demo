@@ -79,7 +79,7 @@
         [
             "@semantic-release/exec",
             {
-                "successCmd": "gh workflow run publish.yaml --ref ${nextRelease.gitTag}"
+                "successCmd": "echo \"tag=${nextRelease.gitTag}\" >> \"$GITHUB_OUTPUT\" && echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\""
             }
         ]
     ]
