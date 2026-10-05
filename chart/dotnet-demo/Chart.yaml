@@ -2,7 +2,5 @@ apiVersion: v2
 name: dotnet-demo
 description: A Helm chart for Kubernetes
 type: application
-# version and appVersion are placeholders: helm-publish.yaml packages the chart
-# with the release tag's semver (`helm package --version --app-version`).
-version: 0.0.0-dev
-appVersion: 0.0.0-dev
+version: 4.1.2
+appVersion: 4.1.2

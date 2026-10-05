@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version>4.1.2</Version> <!-- x-magic-release-version -->
   </PropertyGroup>
 
   <ItemGroup>

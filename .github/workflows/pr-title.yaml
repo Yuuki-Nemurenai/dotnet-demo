@@ -1,7 +1,7 @@
 name: PR title
 
 # Feature pull requests are squash-merged with the PR title as the commit
-# message, so the title is what semantic-release reads and must be a
+# message, so the title is what magic-releaser reads and must be a
 # conventional commit. The develop -> master release PR is merged with a merge
 # commit that keeps the individual commits, so its title is not checked.
 on:
