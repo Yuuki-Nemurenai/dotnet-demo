@@ -1,0 +1,39 @@
+name: PR title
+
+# Feature pull requests are squash-merged with the PR title as the commit
+# message, so the title is what semantic-release reads and must be a
+# conventional commit. The develop -> master release PR is merged with a merge
+# commit that keeps the individual commits, so its title is not checked.
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-pr:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    if: ${{ github.head_ref != 'develop' }}
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read # to read the PR title
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+            security

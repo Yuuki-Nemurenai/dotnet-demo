@@ -1,9 +1,11 @@
 name: Release
 
 # master is the release branch: every push to it is analysed by semantic-release,
-# which pushes the vX.Y.Z tag, creates the GitHub release and then dispatches the
-# Publish workflow on that tag. It commits nothing: the version lives only in the
-# tag and is injected into the csproj, the image and the chart at build time.
+# which pushes the vX.Y.Z tag and creates the GitHub release. When a release is
+# made, the same run builds the X.Y.Z image and publishes the Helm chart;
+# deployment stays manual (Deploy workflow). Nothing is committed: the version
+# lives only in the tag and is injected into the csproj, the image and the chart
+# at build time. A failed image or chart job is retried with "Re-run failed jobs".
 on:
   push:
     branches:
@@ -24,7 +26,9 @@ jobs:
       contents: write # to push the tag and create the GitHub release
       issues: write # to comment on released issues
       pull-requests: write # to comment on released pull requests
-      actions: write # to dispatch the Publish workflow for the new tag
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -42,10 +46,36 @@ jobs:
       - name: Verify release tooling signatures
         run: npm audit signatures
 
-      # The tag and the release are made as github-actions[bot]. A tag pushed with
-      # GITHUB_TOKEN never triggers `on: push: tags`, but workflow_dispatch does,
-      # so Publish is started explicitly by @semantic-release/exec (successCmd).
+      # @semantic-release/exec (successCmd) writes the tag and version to the step
+      # outputs; when no release is made they stay empty and publishing is skipped.
       - name: Semantic Release
+        id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
+
+  image:
+    name: Build image
+    needs: release
+    if: ${{ needs.release.outputs.version != '' }}
+    permissions:
+      contents: read # for checkout
+      packages: write # to push the image to GHCR
+    uses: ./.github/workflows/docker-build.yaml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
+      # Releases get only their immutable number; `latest` belongs to develop
+      tags: |
+        type=raw,value=${{ needs.release.outputs.version }}
+
+  chart:
+    name: Publish chart
+    needs: [release, image]
+    permissions:
+      contents: write # to attach the packaged chart to the GitHub release
+      packages: write # to push the chart to GHCR as an OCI artifact
+    uses: ./.github/workflows/helm-publish.yaml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
