@@ -1,11 +1,15 @@
 name: Release
 
-# master is the release branch: every push to it is analysed by semantic-release,
-# which pushes the vX.Y.Z tag and creates the GitHub release. When a release is
-# made, the same run builds the X.Y.Z image and publishes the Helm chart;
-# deployment stays manual (Deploy workflow). Nothing is committed: the version
-# lives only in the tag and is injected into the csproj, the image and the chart
-# at build time. A failed image or chart job is retried with "Re-run failed jobs".
+# master is the release branch: every push to it is analysed by magic-releaser,
+# which bumps the csproj and the chart, prepends CHANGELOG.md, pushes the
+# `chore(release): vX.Y.Z` commit with its tag and creates the GitHub release.
+# When a release is made, the same run builds the X.Y.Z image and publishes the
+# Helm chart; deployment stays manual (Deploy workflow). A failed image or chart
+# job is retried with "Re-run failed jobs".
+#
+# master is protected, so the release commit is pushed with a GitHub App token
+# (secrets RELEASE_APP_ID, RELEASE_APP_PRIVATE_KEY); the App must be on the
+# master ruleset's bypass list.
 on:
   push:
     branches:
@@ -20,44 +24,45 @@ concurrency:
 
 jobs:
   release:
-    name: Semantic Release
+    name: Release
     runs-on: ubuntu-latest
+    # The release commit lands on master and starts this workflow again
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
     permissions:
-      contents: write # to push the tag and create the GitHub release
-      issues: write # to comment on released issues
-      pull-requests: write # to comment on released pull requests
+      contents: read # the App token, not GITHUB_TOKEN, writes the release
     outputs:
+      released: ${{ steps.release.outputs.released }}
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
     steps:
+      # - name: Create GitHub App token
+      #   id: app-token
+      #   uses: actions/create-github-app-token@v2
+      #   with:
+      #     app-id: ${{ secrets.RELEASE_APP_ID }}
+      #     private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          #token: ${{ steps.app-token.outputs.token }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: lts/*
-
-      - name: Install release tooling
-        run: npm clean-install
-
-      - name: Verify release tooling signatures
-        run: npm audit signatures
-
-      # @semantic-release/exec (successCmd) writes the tag and version to the step
-      # outputs; when no release is made they stay empty and publishing is skipped.
-      - name: Semantic Release
+      # Settings come from .magic-releaser.yaml. The exact release tag makes the
+      # action download its checksummed binary; a commit SHA would build it from
+      # source. The release commit and the tag are pushed in one atomic push.
+      - name: Release
         id: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        uses: yuki-nemurenai/magic-releaser@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          #token: ${{ steps.app-token.outputs.token }}
 
   image:
     name: Build image
     needs: release
-    if: ${{ needs.release.outputs.version != '' }}
+    if: ${{ needs.release.outputs.released == 'true' }}
     permissions:
       contents: read # for checkout
       packages: write # to push the image to GHCR
@@ -69,13 +74,13 @@ jobs:
       tags: |
         type=raw,value=${{ needs.release.outputs.version }}
 
-  chart:
-    name: Publish chart
-    needs: [release, image]
-    permissions:
-      contents: write # to attach the packaged chart to the GitHub release
-      packages: write # to push the chart to GHCR as an OCI artifact
-    uses: ./.github/workflows/helm-publish.yaml
-    with:
-      ref: ${{ needs.release.outputs.tag }}
-      version: ${{ needs.release.outputs.version }}
+  # chart:
+  #   name: Publish chart
+  #   needs: [release, image]
+  #   permissions:
+  #     contents: write # to attach the packaged chart to the GitHub release
+  #     packages: write # to push the chart to GHCR as an OCI artifact
+  #   uses: ./.github/workflows/helm-publish.yaml
+  #   with:
+  #     ref: ${{ needs.release.outputs.tag }}
+  #     version: ${{ needs.release.outputs.version }}

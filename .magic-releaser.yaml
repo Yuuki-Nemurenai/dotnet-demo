@@ -1,0 +1,13 @@
+versioning: semver
+tagFormat: "v{{version}}"
+changelog: CHANGELOG.md
+requirePreviousRelease: true
+
+packages:
+  - name: dotnet-demo
+    path: .
+    files:
+      - type: generic
+        path: EFCoreDemo/EFCoreDemo.csproj
+      - type: helm-chart
+        path: chart/dotnet-demo/Chart.yaml
