@@ -7,9 +7,11 @@ name: Release
 # Helm chart; deployment stays manual (Deploy workflow). A failed image or chart
 # job is retried with "Re-run failed jobs".
 #
-# master is protected, so the release commit is pushed with a GitHub App token
-# (secrets RELEASE_APP_ID, RELEASE_APP_PRIVATE_KEY); the App must be on the
-# master ruleset's bypass list.
+# The release tag is then merged back into develop (back-merge job).
+#
+# master and develop are protected, so the release commit and the back-merge are
+# pushed with a GitHub App token (secrets RELEASE_APP_ID, RELEASE_APP_PRIVATE_KEY);
+# the App must be on the bypass list of both branches' rulesets.
 on:
   push:
     branches:
@@ -84,3 +86,49 @@ jobs:
   #   with:
   #     ref: ${{ needs.release.outputs.tag }}
   #     version: ${{ needs.release.outputs.version }}
+
+  # The release commit exists only on master: merge the release tag back into
+  # develop so its versions and CHANGELOG.md stay current. A conflict is left to
+  # a person as a master -> develop pull request.
+  back-merge:
+    name: Back-merge into develop
+    needs: release
+    if: ${{ needs.release.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # the App token, not GITHUB_TOKEN, pushes to develop
+    steps:
+      # - name: Create GitHub App token
+      #   id: app-token
+      #   uses: actions/create-github-app-token@v2
+      #   with:
+      #     app-id: ${{ secrets.RELEASE_APP_ID }}
+      #     private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout develop
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          #token: ${{ steps.app-token.outputs.token }}
+
+      - name: Merge the release into develop
+        env:
+          # GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git merge --no-ff "$TAG" -m "chore: back-merge $TAG into develop"; then
+            git push origin develop
+            echo "### Merged $TAG into develop" >> "$GITHUB_STEP_SUMMARY"
+          else
+            git merge --abort
+            url="$(gh pr create --base develop --head master \
+              --title "chore: back-merge $TAG into develop" \
+              --body "Merging $TAG into develop conflicts; resolve it here and merge with a merge commit.")"
+            echo "::warning::Back-merge of $TAG conflicts, opened $url"
+            echo "### Back-merge of $TAG conflicts: $url" >> "$GITHUB_STEP_SUMMARY"
+          fi
