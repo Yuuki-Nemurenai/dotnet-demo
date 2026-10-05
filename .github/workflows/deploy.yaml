@@ -2,7 +2,8 @@ name: Deploy
 
 # Manual only. Deployment never rebuilds: it moves the environment's mutable tag
 # onto an image that is already in GHCR, either a develop build (run number,
-# e.g. 35) or a release (X.Y.Z, e.g. 4.1.0).
+# e.g. 35) or a release (X.Y.Z, e.g. 4.1.0). Run on a vX.Y.Z tag ("Use workflow
+# from"), it deploys that release and the version input may be left empty.
 on:
   workflow_dispatch:
     inputs:
@@ -12,8 +13,8 @@ on:
         required: true
         default: production
       version:
-        description: "Image to deploy: develop run number (e.g. 35) or release version (e.g. 4.1.0)"
-        required: true
+        description: "Image to deploy: develop run number (e.g. 35) or release version (e.g. 4.1.0); empty when run on a release tag"
+        required: false
         type: string
 
 permissions:
@@ -26,7 +27,7 @@ env:
 
 jobs:
   deploy:
-    name: Deploy ${{ inputs.version }} to ${{ inputs.environment }}
+    name: Deploy ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }} to ${{ inputs.environment }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     concurrency:
@@ -35,15 +36,32 @@ jobs:
     permissions:
       contents: read # for checkout
       packages: write # to move the environment tag onto the image digest
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
     steps:
-      - name: Validate version
+      # On a tag the version comes from the tag; an input that disagrees is an error
+      - name: Resolve version
         env:
-          VERSION: ${{ inputs.version }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+\.[0-9]+)?$'; then
-            echo "::error::'$VERSION' is neither a run number nor a X.Y.Z release version"
+          version="$INPUT_VERSION"
+          if [ "$REF_TYPE" = tag ]; then
+            if [ -n "$INPUT_VERSION" ] && [ "$INPUT_VERSION" != "${REF_NAME#v}" ]; then
+              echo "::error::Version '$INPUT_VERSION' does not match tag '$REF_NAME'; leave it empty to deploy the tag"
+              exit 1
+            fi
+            version="${REF_NAME#v}"
+          elif [ -z "$version" ]; then
+            echo "::error::Version is required unless the workflow is run on a release tag"
             exit 1
           fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+(\.[0-9]+\.[0-9]+)?$'; then
+            echo "::error::'$version' is neither a run number nor a X.Y.Z release version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -57,9 +75,6 @@ jobs:
 
       - name: Point the environment tag at the image digest
         id: promote
-        env:
-          VERSION: ${{ inputs.version }}
-          ENVIRONMENT: ${{ inputs.environment }}
         run: |
           image="$REGISTRY/$IMAGE_NAME"
           digest="$(docker buildx imagetools inspect "$image:$VERSION" \
@@ -69,8 +84,6 @@ jobs:
 
       - name: Deployment summary
         env:
-          VERSION: ${{ inputs.version }}
-          ENVIRONMENT: ${{ inputs.environment }}
           DIGEST: ${{ steps.promote.outputs.digest }}
         run: |
           {
