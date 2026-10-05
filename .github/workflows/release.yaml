@@ -17,9 +17,6 @@ on:
     branches:
       - master
 
-permissions:
-  contents: read
-
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -31,7 +28,7 @@ jobs:
     # The release commit lands on master and starts this workflow again
     if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     outputs:
@@ -68,7 +65,7 @@ jobs:
     needs: release
     if: ${{ needs.release.outputs.released == 'true' }}
     permissions:
-      contents: read # for checkout
+      contents: write # for checkout
       packages: write # to push the image to GHCR
     uses: ./.github/workflows/docker-build.yaml
     with:
@@ -98,7 +95,7 @@ jobs:
     if: ${{ needs.release.outputs.released == 'true' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       issues: write
       pull-requests: write
     steps:
