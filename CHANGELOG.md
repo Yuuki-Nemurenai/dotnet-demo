@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.4.0](https://github.com/yuki-nemurenai/dotnet-demo/compare/v4.3.0...v4.4.0) (2026-10-06)
+
+### Features
+
+- **ci:** Super-mega feature ([a09024f](https://github.com/yuki-nemurenai/dotnet-demo/commit/a09024f6a73244c67e8757dda6eb97d5c6e8cc53))
+
+### Continuous Integration
+
+- let magic-releaser back-merge releases into develop ([ec63d7b](https://github.com/yuki-nemurenai/dotnet-demo/commit/ec63d7b69fc428ac015ffe98b4ad307cd2044882))
+
 ## [4.3.0](https://github.com/yuki-nemurenai/dotnet-demo/compare/v4.2.0...v4.3.0) (2026-10-05)
 
 ### Features
