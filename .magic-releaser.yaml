@@ -5,9 +5,13 @@ requirePreviousRelease: true
 
 packages:
   - name: dotnet-demo
-    path: .
     files:
-      - type: generic
+      - type: dotnet
         path: EFCoreDemo/EFCoreDemo.csproj
-      - type: helm-chart
+      - type: helm
         path: chart/dotnet-demo/Chart.yaml
+
+# After the release, magic-releaser merges it into develop; a conflict is left
+# as a pull request from back-merge/<tag>/develop.
+backMerge:
+  - develop
