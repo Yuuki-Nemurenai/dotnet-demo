@@ -76,13 +76,13 @@ jobs:
       tags: |
         type=raw,value=${{ needs.release.outputs.version }}
 
-  # chart:
-  #   name: Publish chart
-  #   needs: [release, image]
-  #   permissions:
-  #     contents: write # to attach the packaged chart to the GitHub release
-  #     packages: write # to push the chart to GHCR as an OCI artifact
-  #   uses: ./.github/workflows/helm-publish.yaml
-  #   with:
-  #     ref: ${{ needs.release.outputs.tag }}
-  #     version: ${{ needs.release.outputs.version }}
+  chart:
+    name: Publish chart
+    needs: [release, image]
+    permissions:
+      contents: write # to attach the packaged chart to the GitHub release
+      packages: write # to push the chart to GHCR as an OCI artifact
+    uses: ./.github/workflows/helm-publish.yaml
+    with:
+      ref: ${{ needs.release.outputs.tag }}
+      version: ${{ needs.release.outputs.version }}
