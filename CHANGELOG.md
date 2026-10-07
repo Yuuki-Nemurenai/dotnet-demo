@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.1](https://github.com/Yuuki-Nemurenai/dotnet-demo/compare/v4.4.0...v4.4.1) (2026-10-07)
+
+### Bug Fixes
+
+- **ci:** Enable Helm publish (#56) ([88dd925](https://github.com/Yuuki-Nemurenai/dotnet-demo/commit/88dd9255d5d89c8c90b35bddac3471a064745655))
+- **ci:** Use GitHub App (#58) ([e49311a](https://github.com/Yuuki-Nemurenai/dotnet-demo/commit/e49311a2722dc308a4b41d81c852b669bbe92041))
+
 ## [4.4.0](https://github.com/yuki-nemurenai/dotnet-demo/compare/v4.3.0...v4.4.0) (2026-10-06)
 
 ### Features
