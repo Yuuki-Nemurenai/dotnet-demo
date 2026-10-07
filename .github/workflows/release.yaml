@@ -28,28 +28,26 @@ jobs:
     runs-on: ubuntu-latest
     # The release commit lands on master and starts this workflow again
     if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    # Every write goes through the GitHub App token, not GITHUB_TOKEN
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
+      contents: read
     outputs:
       released: ${{ steps.release.outputs.released }}
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      # - name: Create GitHub App token
-      #   id: app-token
-      #   uses: actions/create-github-app-token@v2
-      #   with:
-      #     app-id: ${{ secrets.RELEASE_APP_ID }}
-      #     private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          #token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       # Settings come from .magic-releaser.yaml. The exact release tag makes the
       # action download its checksummed binary; a commit SHA would build it from
@@ -58,8 +56,7 @@ jobs:
         id: release
         uses: yuki-nemurenai/magic-releaser@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          #token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
   image:
     name: Build image
