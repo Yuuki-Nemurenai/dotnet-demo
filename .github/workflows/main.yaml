@@ -10,8 +10,8 @@ on:
       - develop
   pull_request:
     branches:
-      - main
-    types: [opened, reopened, synchronize]
+      - develop
+    types: [opened, reopened, synchronize, edited]
 
 env:
   DOTNET_VERSION: 9.0.x
