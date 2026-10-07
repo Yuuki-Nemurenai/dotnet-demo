@@ -10,7 +10,7 @@ on:
       - develop
   pull_request:
     branches:
-      - devekop
+      - develop
     types: [opened, reopened, synchronize, edited]
 
 env:
